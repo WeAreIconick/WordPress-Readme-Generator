@@ -1,0 +1,34 @@
+{
+  "$schema": "https://schemas.wp.org/trunk/block.json",
+  "apiVersion": 3,
+  "name": "telex/block-wordpress-readme-generator",
+  "version": "0.1.0",
+  "title": "WordPress Readme Generator",
+  "category": "design",
+  "icon": "text-page",
+  "description": "Generate perfect WordPress.org plugin readme.txt files with an interactive form builder that follows all official standards and best practices.",
+  "example": {},
+  "attributes": {
+    "formData": {
+      "type": "object",
+      "default": {}
+    },
+    "currentStep": {
+      "type": "number",
+      "default": 0
+    }
+  },
+  "supports": {
+    "html": false,
+    "align": [
+      "wide",
+      "full"
+    ]
+  },
+  "textdomain": "wordpress-readme-generator-block-wp",
+  "editorScript": "file:./index.js",
+  "editorStyle": "file:./index.css",
+  "style": "file:./style-index.css",
+  "viewScript": "file:./view.js",
+  "render": "file:./render.php"
+}

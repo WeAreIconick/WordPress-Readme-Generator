@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Readme Parsing</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .debug-container { max-width: 800px; margin: 0 auto; }
+        .debug-section { border: 1px solid #ccc; padding: 20px; margin: 20px 0; border-radius: 5px; }
+        .error { background: #ffebee; color: #c62828; border: 1px solid #f44336; }
+        .success { background: #e8f5e8; color: #2e7d32; border: 1px solid #4caf50; }
+        .warning { background: #fff3e0; color: #ef6c00; border: 1px solid #ff9800; }
+        .code { background: #f5f5f5; padding: 10px; border-radius: 3px; font-family: monospace; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <div class="debug-container">
+        <h1>Debug Readme Parsing</h1>
+        
+        <div class="debug-section">
+            <h3>Test Results</h3>
+            <div id="testResults"></div>
+        </div>
+
+        <div class="debug-section">
+            <h3>Sample Readme Content</h3>
+            <div class="code" id="sampleContent"></div>
+        </div>
+
+        <div class="debug-section">
+            <h3>Parsed Data</h3>
+            <div class="code" id="parsedData"></div>
+        </div>
+    </div>
+
+    <script>
+        // Sample readme content from the attached file
+        const sampleReadme = `=== Content Randomizer - Rotate Any Block ===
+Contributors: slaFFik
+Tags: randomizer, rotation, gutenberg, dynamic-content, testimonials
+Requires at least: 6.7
+Requires PHP: 7.4
+Tested up to: 6.8
+Stable tag: 1.2.0
+License: GPL-2.0-or-later
+
+Rotate and display random content blocks on every page load. Perfect for testimonials, CTAs, and dynamic content. Works with any block type.
+
+== Description ==
+
+Blocks Randomizer adds dynamic variety to your website by randomly displaying blocks from a collection you define. Simply add the "Blocks Randomizer" container block to any page or post, fill it with your desired content blocks, and the plugin will automatically select and display one (or more) randomly each time the page loads.
+
+Perfect for creating fresh, engaging experiences for repeat visitors without manually updating content.
+
+### Key Features
+
+* **Easy to Use**: Works seamlessly with the WordPress Block Editor (Gutenberg)
+* **Flexible Content**: Add any type of block as a child - paragraphs, images, headings, galleries, custom blocks, and more
+* **Multiple Display Options**: Choose how many random blocks to show at once
+* **No Coding Required**: Simple drag-and-drop interface for managing randomized content
+* **Performance Optimized**: Lightweight and efficient randomization
+
+== Installation ==
+
+This section describes how to install the plugin and get it working.
+
+**Install through your backend**:
+
+1. Install the plugin via Plugins -> New plugin. Search for "blocks randomizer".
+1. Click the "Install Now" button, and then - "Activate".
+
+**Install manually**:
+
+1. Download and unzip the plugin.
+1. Upload the \`blocks-randomizer\` directory to the \`/wp-content/plugins/\` directory.
+1. Activate the plugin through the "Plugins" menu in WordPress.
+
+== Frequently Asked Questions ==
+
+### How do I add the Blocks Randomizer to my page?
+
+In the Block Editor, type the slash \`/random\` and select the "Blocks Randomizer" block. Then use the "+" button inside of it to add any blocks you want to be randomized on each page load.
+
+### Can I randomize any type of block?
+
+Yes, any block that you see in your Block Editor can be used inside our Blocks Randomizer.
+
+== Changelog ==
+
+= 1.2.0 =
+* Changed: You can now set the number of items inside the randomizer block to 0, effectively hiding the whole block on the front-end (and everything inside it).
+* Changed: Do not allow putting the Randomizer block inside the Randomizer block. You don't want to go deeper.
+
+= 1.1.0 =
+* Added: New option - Number of child blocks to display.
+
+= 1.0.0 =
+* Added: New parent container to store all your randomly selected blocks: Blocks Randomizer`;
+
+        // Simplified parsing function based on the plugin's logic
+        function parseReadmeContent(content) {
+            const result = {
+                pluginName: '',
+                contributors: '',
+                tags: '',
+                requiresAtLeast: '',
+                requiresPHP: '',
+                testedUpTo: '',
+                stableTag: '',
+                license: '',
+                shortDescription: '',
+                description: '',
+                installation: '',
+                faqs: [],
+                changelog: []
+            };
+
+            try {
+                const lines = content.split('\n');
+                let inHeader = false;
+                let currentSection = '';
+                let sectionContent = [];
+
+                for (let i = 0; i < lines.length; i++) {
+                    const line = (lines[i] || '').trim();
+                    
+                    // Check for plugin header
+                    if (line.match(/^===.*===$/)) {
+                        result.pluginName = line.replace(/^===/, '').replace(/===$/, '').trim();
+                        inHeader = true;
+                        continue;
+                    }
+
+                    // Check for end of header
+                    if (inHeader && line === '') {
+                        inHeader = false;
+                        continue;
+                    }
+
+                    // Parse header fields
+                    if (inHeader && line.includes(':')) {
+                        const colonIndex = line.indexOf(':');
+                        if (colonIndex !== -1) {
+                            const field = line.substring(0, colonIndex).trim().toLowerCase();
+                            const value = line.substring(colonIndex + 1).trim();
+                            
+                            switch (field) {
+                                case 'contributors':
+                                case 'contributor':
+                                    result.contributors = value;
+                                    break;
+                                case 'tags':
+                                case 'tag':
+                                    result.tags = value;
+                                    break;
+                                case 'requires at least':
+                                    result.requiresAtLeast = value;
+                                    break;
+                                case 'requires php':
+                                    result.requiresPHP = value;
+                                    break;
+                                case 'tested up to':
+                                    result.testedUpTo = value;
+                                    break;
+                                case 'stable tag':
+                                    result.stableTag = value;
+                                    break;
+                                case 'license':
+                                    result.license = value;
+                                    break;
+                            }
+                        }
+                        continue;
+                    }
+
+                    // Check for sections
+                    if (line.match(/^== .+ ==$/)) {
+                        // Save previous section
+                        if (currentSection && sectionContent.length > 0) {
+                            const content = sectionContent.join('\n').trim();
+                            switch (currentSection) {
+                                case 'description':
+                                    result.description = content;
+                                    break;
+                                case 'installation':
+                                    result.installation = content;
+                                    break;
+                            }
+                        }
+                        
+                        currentSection = line.replace(/^== /, '').replace(/ ==$/, '').toLowerCase();
+                        sectionContent = [];
+                        continue;
+                    }
+
+                    // Check for FAQ questions
+                    if (line.match(/^### .+$/)) {
+                        const question = line.replace(/^### /, '').trim();
+                        result.faqs.push({ question, answer: '' });
+                        continue;
+                    }
+
+                    // Check for changelog versions
+                    if (line.match(/^= .+ =$/)) {
+                        const version = line.replace(/^= /, '').replace(/ =$/, '').trim();
+                        result.changelog.push({ version, changes: [] });
+                        continue;
+                    }
+
+                    // Check for changelog items
+                    if (line.match(/^\* .+$/) && result.changelog.length > 0) {
+                        const change = line.replace(/^\* /, '').trim();
+                        result.changelog[result.changelog.length - 1].changes.push(change);
+                        continue;
+                    }
+
+                    // Add to current section
+                    if (currentSection && line) {
+                        sectionContent.push(line);
+                    }
+
+                    // Check for short description (first non-empty line after header)
+                    if (!inHeader && !currentSection && line && !result.shortDescription) {
+                        result.shortDescription = line;
+                    }
+                }
+
+                // Save last section
+                if (currentSection && sectionContent.length > 0) {
+                    const content = sectionContent.join('\n').trim();
+                    switch (currentSection) {
+                        case 'description':
+                            result.description = content;
+                            break;
+                        case 'installation':
+                            result.installation = content;
+                            break;
+                    }
+                }
+
+                return result;
+            } catch (error) {
+                return { error: error.message };
+            }
+        }
+
+        // Test the parsing
+        document.addEventListener('DOMContentLoaded', function() {
+            const testResults = document.getElementById('testResults');
+            const sampleContent = document.getElementById('sampleContent');
+            const parsedData = document.getElementById('parsedData');
+
+            // Show sample content
+            sampleContent.textContent = sampleReadme.substring(0, 500) + '...';
+
+            // Test parsing
+            const parsed = parseReadmeContent(sampleReadme);
+            
+            if (parsed.error) {
+                testResults.innerHTML = '<div class="error"><h4>❌ Parsing Error</h4><p>' + parsed.error + '</p></div>';
+            } else {
+                testResults.innerHTML = '<div class="success"><h4>✅ Parsing Successful</h4><p>Readme file parsed successfully!</p></div>';
+            }
+
+            parsedData.textContent = JSON.stringify(parsed, null, 2);
+        });
+    </script>
+</body>
+</html>

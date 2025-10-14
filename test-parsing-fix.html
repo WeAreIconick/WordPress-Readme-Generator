@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Readme Parsing Fix</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-container { max-width: 800px; margin: 0 auto; }
+        .test-section { border: 1px solid #ccc; padding: 20px; margin: 20px 0; border-radius: 5px; }
+        .success { background: #e8f5e8; color: #2e7d32; border-color: #4caf50; }
+        .error { background: #ffebee; color: #c62828; border-color: #f44336; }
+        .warning { background: #fff3e0; color: #ef6c00; border-color: #ff9800; }
+        .code { background: #f5f5f5; padding: 10px; border-radius: 3px; font-family: monospace; white-space: pre-wrap; max-height: 300px; overflow-y: auto; }
+        .inline-preview { background: #f8f9fa; border: 1px solid #dee2e6; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .preview-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 10px; }
+        .btn { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; }
+        .btn-primary { background: #007cba; color: white; }
+        .btn-secondary { background: #f1f3f4; color: #3c4043; border: 1px solid #dadce0; }
+        .btn:hover { opacity: 0.8; }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>WordPress Readme Generator - Parsing Fix Test</h1>
+        
+        <div class="test-section">
+            <h3>Test Results</h3>
+            <div id="testResults"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>Sample Readme Content (First 500 chars)</h3>
+            <div class="code" id="sampleContent"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>Parsed Data</h3>
+            <div class="code" id="parsedData"></div>
+        </div>
+
+        <!-- Inline Preview Section -->
+        <div class="test-section inline-preview" id="previewSection" style="display: none;">
+            <h3>Inline Preview</h3>
+            <div class="code" id="previewContent"></div>
+            <div class="preview-actions">
+                <button class="btn btn-secondary" id="hidePreviewBtn">Hide Preview</button>
+                <button class="btn btn-primary" id="downloadBtn">Download readme.txt</button>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>Test Actions</h3>
+            <button class="btn btn-primary" id="testParsingBtn">Test Parsing</button>
+            <button class="btn btn-primary" id="showPreviewBtn">Show Preview</button>
+        </div>
+    </div>
+
+    <script>
+        // Sample readme content from the attached file
+        const sampleReadme = `=== Content Randomizer - Rotate Any Block ===
+Contributors: slaFFik
+Tags: randomizer, rotation, gutenberg, dynamic-content, testimonials
+Requires at least: 6.7
+Requires PHP: 7.4
+Tested up to: 6.8
+Stable tag: 1.2.0
+License: GPL-2.0-or-later
+
+Rotate and display random content blocks on every page load. Perfect for testimonials, CTAs, and dynamic content. Works with any block type.
+
+== Description ==
+
+Blocks Randomizer adds dynamic variety to your website by randomly displaying blocks from a collection you define. Simply add the "Blocks Randomizer" container block to any page or post, fill it with your desired content blocks, and the plugin will automatically select and display one (or more) randomly each time the page loads.
+
+Perfect for creating fresh, engaging experiences for repeat visitors without manually updating content.
+
+### Key Features
+
+* **Easy to Use**: Works seamlessly with the WordPress Block Editor (Gutenberg)
+* **Flexible Content**: Add any type of block as a child - paragraphs, images, headings, galleries, custom blocks, and more
+* **Multiple Display Options**: Choose how many random blocks to show at once
+* **No Coding Required**: Simple drag-and-drop interface for managing randomized content
+* **Performance Optimized**: Lightweight and efficient randomization
+
+== Installation ==
+
+This section describes how to install the plugin and get it working.
+
+**Install through your backend**:
+
+1. Install the plugin via Plugins -> New plugin. Search for "blocks randomizer".
+1. Click the "Install Now" button, and then - "Activate".
+
+**Install manually**:
+
+1. Download and unzip the plugin.
+1. Upload the \`blocks-randomizer\` directory to the \`/wp-content/plugins/\` directory.
+1. Activate the plugin through the "Plugins" menu in WordPress.
+
+== Frequently Asked Questions ==
+
+### How do I add the Blocks Randomizer to my page?
+
+In the Block Editor, type the slash \`/random\` and select the "Blocks Randomizer" block. Then use the "+" button inside of it to add any blocks you want to be randomized on each page load.
+
+### Can I randomize any type of block?
+
+Yes, any block that you see in your Block Editor can be used inside our Blocks Randomizer.
+
+== Changelog ==
+
+= 1.2.0 =
+* Changed: You can now set the number of items inside the randomizer block to 0, effectively hiding the whole block on the front-end (and everything inside it).
+* Changed: Do not allow putting the Randomizer block inside the Randomizer block. You don't want to go deeper.
+
+= 1.1.0 =
+* Added: New option - Number of child blocks to display.
+
+= 1.0.0 =
+* Added: New parent container to store all your randomly selected blocks: Blocks Randomizer`;
+
+        // Enhanced parsing function based on the fixed plugin logic
+        function parseReadmeContent(content) {
+            const result = {
+                pluginName: '',
+                contributors: '',
+                tags: '',
+                requiresAtLeast: '',
+                requiresPHP: '',
+                testedUpTo: '',
+                stableTag: '',
+                license: '',
+                shortDescription: '',
+                description: '',
+                installation: '',
+                faqs: [],
+                changelog: []
+            };
+
+            try {
+                const lines = content.split('\n');
+                let inHeader = false;
+                let currentSection = '';
+                let sectionContent = [];
+
+                for (let i = 0; i < lines.length; i++) {
+                    const line = (lines[i] || '').trim();
+                    
+                    // Check for plugin header
+                    if (line.match(/^===.*===$/)) {
+                        result.pluginName = line.replace(/^===/, '').replace(/===$/, '').trim();
+                        inHeader = true;
+                        continue;
+                    }
+
+                    // Check for end of header (empty line after header fields)
+                    if (inHeader && line === '') {
+                        inHeader = false;
+                        continue;
+                    }
+
+                    // Parse header fields
+                    if (inHeader && line.includes(':')) {
+                        const colonIndex = line.indexOf(':');
+                        if (colonIndex !== -1) {
+                            const field = (line.substring(0, colonIndex) || '').trim().toLowerCase();
+                            const value = (line.substring(colonIndex + 1) || '').trim();
+                            
+                            switch (field) {
+                                case 'contributors':
+                                case 'contributor':
+                                    result.contributors = value;
+                                    break;
+                                case 'tags':
+                                case 'tag':
+                                    result.tags = value;
+                                    break;
+                                case 'requires at least':
+                                    result.requiresAtLeast = value;
+                                    break;
+                                case 'requires php':
+                                    result.requiresPHP = value;
+                                    break;
+                                case 'tested up to':
+                                    result.testedUpTo = value;
+                                    break;
+                                case 'stable tag':
+                                    result.stableTag = value;
+                                    break;
+                                case 'license':
+                                    result.license = value;
+                                    break;
+                            }
+                        }
+                        continue;
+                    }
+
+                    // Check for sections
+                    if (line.match(/^== .+ ==$/)) {
+                        // Save previous section
+                        if (currentSection && sectionContent.length > 0) {
+                            const content = sectionContent.join('\n').trim();
+                            switch (currentSection) {
+                                case 'description':
+                                    result.description = content;
+                                    break;
+                                case 'installation':
+                                    result.installation = content;
+                                    break;
+                            }
+                        }
+                        
+                        currentSection = line.replace(/^== /, '').replace(/ ==$/, '').toLowerCase();
+                        sectionContent = [];
+                        continue;
+                    }
+
+                    // Check for FAQ questions
+                    if (line.match(/^### .+$/)) {
+                        const question = line.replace(/^### /, '').trim();
+                        result.faqs.push({ question, answer: '' });
+                        continue;
+                    }
+
+                    // Check for changelog versions
+                    if (line.match(/^= .+ =$/)) {
+                        const version = line.replace(/^= /, '').replace(/ =$/, '').trim();
+                        result.changelog.push({ version, changes: [] });
+                        continue;
+                    }
+
+                    // Check for changelog items
+                    if (line.match(/^\* .+$/) && result.changelog.length > 0) {
+                        const change = line.replace(/^\* /, '').trim();
+                        result.changelog[result.changelog.length - 1].changes.push(change);
+                        continue;
+                    }
+
+                    // Add to current section
+                    if (currentSection && line) {
+                        sectionContent.push(line);
+                    }
+
+                    // Check for short description (first non-empty line after header)
+                    if (!inHeader && !currentSection && line && !result.shortDescription) {
+                        result.shortDescription = line;
+                    }
+                }
+
+                // Save last section
+                if (currentSection && sectionContent.length > 0) {
+                    const content = sectionContent.join('\n').trim();
+                    switch (currentSection) {
+                        case 'description':
+                            result.description = content;
+                            break;
+                        case 'installation':
+                            result.installation = content;
+                            break;
+                    }
+                }
+
+                return result;
+            } catch (error) {
+                return { error: error.message };
+            }
+        }
+
+        // Test the parsing and show results
+        function testParsing() {
+            const testResults = document.getElementById('testResults');
+            const sampleContent = document.getElementById('sampleContent');
+            const parsedData = document.getElementById('parsedData');
+
+            // Show sample content
+            sampleContent.textContent = sampleReadme.substring(0, 500) + '...';
+
+            // Test parsing
+            const parsed = parseReadmeContent(sampleReadme);
+            
+            if (parsed.error) {
+                testResults.innerHTML = '<div class="error"><h4>❌ Parsing Error</h4><p>' + parsed.error + '</p></div>';
+            } else {
+                testResults.innerHTML = '<div class="success"><h4>✅ Parsing Successful</h4><p>Readme file parsed successfully! All fields extracted correctly.</p></div>';
+            }
+
+            parsedData.textContent = JSON.stringify(parsed, null, 2);
+        }
+
+        // Show inline preview
+        function showPreview() {
+            const previewSection = document.getElementById('previewSection');
+            const previewContent = document.getElementById('previewContent');
+            
+            // Generate preview content
+            const parsed = parseReadmeContent(sampleReadme);
+            if (!parsed.error) {
+                const previewText = `=== ${parsed.pluginName} ===
+
+Contributors: ${parsed.contributors}
+Tags: ${parsed.tags}
+Requires at least: ${parsed.requiresAtLeast}
+Tested up to: ${parsed.testedUpTo}
+Stable tag: ${parsed.stableTag}
+Requires PHP: ${parsed.requiresPHP}
+License: ${parsed.license}
+
+${parsed.shortDescription}
+
+== Description ==
+
+${parsed.description}
+
+== Installation ==
+
+${parsed.installation}
+
+== Frequently Asked Questions ==
+
+${parsed.faqs.map(faq => `= ${faq.question} =\n\n${faq.answer || 'Answer here.'}\n\n`).join('')}
+
+== Changelog ==
+
+${parsed.changelog.map(entry => `= ${entry.version} =\n${entry.changes.map(change => `* ${change}`).join('\n')}\n\n`).join('')}`;
+                
+                previewContent.textContent = previewText;
+                previewSection.style.display = 'block';
+                previewSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }
+
+        // Hide preview
+        function hidePreview() {
+            const previewSection = document.getElementById('previewSection');
+            previewSection.style.display = 'none';
+        }
+
+        // Download functionality
+        function downloadReadme() {
+            const parsed = parseReadmeContent(sampleReadme);
+            if (!parsed.error) {
+                const content = `=== ${parsed.pluginName} ===
+
+Contributors: ${parsed.contributors}
+Tags: ${parsed.tags}
+Requires at least: ${parsed.requiresAtLeast}
+Tested up to: ${parsed.testedUpTo}
+Stable tag: ${parsed.stableTag}
+Requires PHP: ${parsed.requiresPHP}
+License: ${parsed.license}
+
+${parsed.shortDescription}
+
+== Description ==
+
+${parsed.description}
+
+== Installation ==
+
+${parsed.installation}
+
+== Frequently Asked Questions ==
+
+${parsed.faqs.map(faq => `= ${faq.question} =\n\n${faq.answer || 'Answer here.'}\n\n`).join('')}
+
+== Changelog ==
+
+${parsed.changelog.map(entry => `= ${entry.version} =\n${entry.changes.map(change => `* ${change}`).join('\n')}\n\n`).join('')}`;
+
+                const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = 'readme.txt';
+                link.style.display = 'none';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+            }
+        }
+
+        // Initialize event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('testParsingBtn').addEventListener('click', testParsing);
+            document.getElementById('showPreviewBtn').addEventListener('click', showPreview);
+            document.getElementById('hidePreviewBtn').addEventListener('click', hidePreview);
+            document.getElementById('downloadBtn').addEventListener('click', downloadReadme);
+            
+            // Run initial test
+            testParsing();
+        });
+    </script>
+</body>
+</html>
