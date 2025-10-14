@@ -431,9 +431,23 @@
 				continue;
 			}
 			
-			// End of header
-			if (line.match(/^==\s+.*\s+==$/) && inHeader) {
-				break;
+			// End of header - look for empty line followed by content (not section markers)
+			if (inHeader && line === '') {
+				// Check if next non-empty line is not a section marker
+				let nextLineIndex = i + 1;
+				while (nextLineIndex < lines.length && (lines[nextLineIndex] || '').trim() === '') {
+					nextLineIndex++;
+				}
+				
+				if (nextLineIndex < lines.length) {
+					const nextLine = (lines[nextLineIndex] || '').trim();
+					// If next line is a section marker (== Section ==), continue header parsing
+					// If next line is content, end header parsing
+					if (!nextLine.match(/^==\s+.*\s+==$/)) {
+						break;
+					}
+				}
+				continue;
 			}
 			
 			if (inHeader && line.includes(':')) {
@@ -798,14 +812,6 @@
 	}
 	
 	function initializeInlinePreviewHandlers(elements) {
-		// Preview button handler
-		if (elements.previewBtn) {
-			elements.previewBtn.addEventListener('click', function(e) {
-				e.preventDefault();
-				showPreview(elements, state);
-			});
-		}
-		
 		// Hide preview button handler
 		if (elements.hidePreviewBtn) {
 			elements.hidePreviewBtn.addEventListener('click', function(e) {
@@ -816,17 +822,6 @@
 				}
 			});
 		}
-		
-		// Download button handler (both preview and main)
-		const downloadButtons = [elements.downloadBtn];
-		downloadButtons.forEach(button => {
-			if (button) {
-				button.addEventListener('click', function(e) {
-					e.preventDefault();
-					downloadReadme(elements, state);
-				});
-			}
-		});
 	}
 	
 	function updateTagsDisplay(generator, selector, tags, type) {
