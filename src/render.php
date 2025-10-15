@@ -81,7 +81,7 @@ if ( false === $requests ) {
 	
 	// Security: Rate limit to 100 requests per hour per IP
 	if ( $requests > 100 ) {
-		echo '<div class="notice notice-error"><p>' . esc_html__( 'Rate limit exceeded. Please try again later.', 'wordpress-readme-generator-block-wp' ) . '</p></div>';
+		echo '<div class="readme-inline-notification notice notice-error"><p>' . esc_html__( 'Rate limit exceeded. Please try again later.', 'wordpress-readme-generator-block-wp' ) . '</p></div>';
 		return;
 	}
 }
@@ -207,7 +207,7 @@ $wrapper_attributes = get_block_wrapper_attributes( array(
 			<h2><?php echo esc_html__( 'WordPress Readme Generator', 'wordpress-readme-generator-block-wp' ); ?></h2>
 			<p><?php echo esc_html__( 'Create perfect WordPress.org plugin readme files with visual formatting', 'wordpress-readme-generator-block-wp' ); ?></p>
 			<?php if ( $public_access ) : ?>
-				<p class="notice notice-info"><small><?php echo esc_html__( 'Please log in for full functionality.', 'wordpress-readme-generator-block-wp' ); ?></small></p>
+				<p class="readme-inline-notification notice notice-info"><small><?php echo esc_html__( 'Please log in for full functionality.', 'wordpress-readme-generator-block-wp' ); ?></small></p>
 			<?php endif; ?>
 		</div>
 
@@ -519,20 +519,25 @@ $wrapper_attributes = get_block_wrapper_attributes( array(
 	font-weight: bold;
 }
 
-.wp-block-telex-block-wordpress-readme-generator-frontend .notice {
-	padding: 0.5em 1em;
+.wp-block-telex-block-wordpress-readme-generator-frontend .readme-inline-notification {
+	padding: 12px 16px;
 	border-left: 4px solid #0073aa;
 	background: #f0f6fc;
-	margin: 1em 0;
+	color: #1d2327;
+	font-size: 14px;
+	line-height: 1.4;
+	border-radius: 4px;
+	margin: 10px 0;
+	word-wrap: break-word;
 }
 
-.wp-block-telex-block-wordpress-readme-generator-frontend .notice.notice-error {
+.wp-block-telex-block-wordpress-readme-generator-frontend .readme-inline-notification.notice-error {
 	border-left-color: #d63638;
 	background: #fcf0f1;
 }
 
-.wp-block-telex-block-wordpress-readme-generator-frontend .notice.notice-info {
-	border-left-color: #0073aa;
+.wp-block-telex-block-wordpress-readme-generator-frontend .readme-inline-notification.notice-success {
+	border-left-color: #00a32a;
 	background: #f0f6fc;
 }
 

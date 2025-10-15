@@ -181,25 +181,29 @@
 		
 		// Show user-friendly error message
 		const errorMessage = error.message || 'An unexpected error occurred';
-		showNotification(errorMessage, 'error');
+		showInlineNotification(errorMessage, 'error');
 	}
 	
-	// User notification system
-	function showNotification(message, type = 'info', duration = 5000) {
+	// Inline notification system
+	function showInlineNotification(message, type = 'info', duration = 5000) {
+		// Remove any existing notifications
+		const existingNotification = document.querySelector('.readme-inline-notification');
+		if (existingNotification) {
+			existingNotification.remove();
+		}
+
 		const notification = document.createElement('div');
-		notification.className = `readme-notification notice notice-${type}`;
+		notification.className = `readme-inline-notification notice notice-${type}`;
 		notification.style.cssText = `
-			position: fixed;
-			top: 32px;
-			right: 20px;
-			z-index: 999999;
-			max-width: 400px;
 			padding: 12px 16px;
-			border-radius: 4px;
-			box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-			background: white;
 			border-left: 4px solid #0073aa;
-			animation: slideIn 0.3s ease-out;
+			background: #f0f6fc;
+			color: #1d2327;
+			font-size: 14px;
+			line-height: 1.4;
+			border-radius: 4px;
+			margin: 10px 0;
+			word-wrap: break-word;
 		`;
 		
 		if (type === 'error') {
@@ -227,7 +231,11 @@
 		closeBtn.onclick = () => notification.remove();
 		notification.appendChild(closeBtn);
 		
-		document.body.appendChild(notification);
+		// Insert at the top of the form
+		const form = document.querySelector('#readmeForm');
+		if (form && form.parentNode) {
+			form.parentNode.insertBefore(notification, form);
+		}
 		
 		// Auto-remove after duration
 		if (duration > 0) {
@@ -257,13 +265,13 @@
 		try {
 			// Security: Verify nonce
 			if (!verifyNonce(generator)) {
-				showNotification('Security verification failed', 'error');
+				showInlineNotification('Security verification failed', 'error');
 				return;
 			}
 			
 			// Security: Check rate limiting
 			if (!checkRateLimit()) {
-				showNotification('Rate limit exceeded. Please try again later.', 'error');
+				showInlineNotification('Rate limit exceeded. Please try again later.', 'error');
 				return;
 			}
 			
@@ -285,7 +293,7 @@
 			initializeFormHandlers(elements, state);
 			
 			// Success message
-			showNotification('Readme generator loaded successfully!', 'success', 3000);
+			showInlineNotification('Readme generator loaded successfully!', 'success', 3000);
 			
 					} catch (error) {
 			handleError(error, 'generator_initialization');
@@ -350,7 +358,7 @@
 				const validation = validateFileUpload(file);
 				if (!validation.valid) {
 					logSecurityEvent('invalid_file_upload', { error: validation.error, filename: file.name });
-					showNotification(validation.error, 'error');
+					showInlineNotification(validation.error, 'error');
 					e.target.value = ''; // Clear input
 					return;
 				}
@@ -361,16 +369,16 @@
 					try {
 						const content = event.target.result;
 						parseReadmeFile(content, generator, elements, state);
-						showNotification('File imported successfully!', 'success');
+						showInlineNotification('File imported successfully!', 'success');
 					} catch (error) {
 						handleError(error, 'file_parsing');
-						showNotification('Error parsing file. Please check the format.', 'error');
+						showInlineNotification('Error parsing file. Please check the format.', 'error');
 					}
 				};
 				
 				reader.onerror = function() {
 					handleError(new Error('File read error'), 'file_reading');
-					showNotification('Error reading file', 'error');
+					showInlineNotification('Error reading file', 'error');
 				};
 				
 				reader.readAsText(file);
@@ -444,6 +452,11 @@
 					// If next line is a section marker (== Section ==), continue header parsing
 					// If next line is content, end header parsing
 					if (!nextLine.match(/^==\s+.*\s+==$/)) {
+						inHeader = false;
+						// This next line should be the short description
+						if (nextLine && nextLine.length > 0) {
+							setFieldValue(generator, '#shortDescription', nextLine);
+						}
 						break;
 					}
 				}
@@ -455,8 +468,7 @@
 			}
 		}
 		
-		// Parse short description
-		parseShortDescription(content, generator);
+		// Short description is now handled in the main parsing loop above
 	}
 	
 	// Parse individual header fields
@@ -572,10 +584,224 @@
 		}
 	}
 	
-	// Additional helper functions would continue here...
-	// Due to space constraints, I'm including the core security enhancements
-	// The complete implementation would include all the remaining functions
-	// with similar security measures applied throughout
+	// Parse FAQ section from content
+	function parseFAQ(content, generator, elements, state) {
+		try {
+			const faqRegex = /==\s*Frequently Asked Questions\s*==([\s\S]*?)(?==\s*\w+\s*==|$)/i;
+			const match = content.match(faqRegex);
+			
+			if (!match || !match[1]) return;
+			
+			const faqContent = match[1].trim();
+			if (!faqContent) return;
+			
+			// Parse individual FAQ items
+			const faqItems = faqContent.split(/(?==\s*[^=]+\s*=\s*$)/gm);
+			let faqIndex = 1;
+			
+			faqItems.forEach(function(item) {
+				if (!item.trim()) return;
+				
+				// Extract question and answer
+				const lines = item.trim().split('\n');
+				let question = '';
+				let answer = '';
+				let inAnswer = false;
+				
+				for (let i = 0; i < lines.length; i++) {
+					const line = lines[i].trim();
+					
+					if (line.match(/^=\s*.+\s*=\s*$/)) {
+						question = line.replace(/^=\s*|\s*=\s*$/g, '');
+						inAnswer = true;
+					} else if (inAnswer && line) {
+						answer += line + '\n';
+					}
+				}
+				
+				if (question && answer) {
+					addFAQFromParsed(generator, elements, state, question, answer.trim(), faqIndex);
+					faqIndex++;
+				}
+			});
+			
+		} catch (error) {
+			handleError(error, 'faq_parsing');
+		}
+	}
+	
+	// Parse changelog section from content
+	function parseChangelog(content, generator, elements, state) {
+		try {
+			const changelogRegex = /==\s*Changelog\s*==([\s\S]*?)(?==\s*\w+\s*==|$)/i;
+			const match = content.match(changelogRegex);
+			
+			if (!match || !match[1]) return;
+			
+			const changelogContent = match[1].trim();
+			if (!changelogContent) return;
+			
+			// Parse individual changelog versions
+			const versionItems = changelogContent.split(/(?==\s*[\d.]+\s*=\s*$)/gm);
+			let changelogIndex = 1;
+			
+			versionItems.forEach(function(item) {
+				if (!item.trim()) return;
+				
+				// Extract version and changes
+				const lines = item.trim().split('\n');
+				let version = '';
+				const changes = [];
+				
+				for (let i = 0; i < lines.length; i++) {
+					const line = lines[i].trim();
+					
+					if (line.match(/^=\s*[\d.]+\s*=\s*$/)) {
+						version = line.replace(/^=\s*|\s*=\s*$/g, '');
+					} else if (line.match(/^\*\s+/)) {
+						const change = line.replace(/^\*\s+/, '').trim();
+						if (change) {
+							changes.push(change);
+						}
+					}
+				}
+				
+				if (version && changes.length > 0) {
+					addChangelogFromParsed(generator, elements, state, version, changes, changelogIndex);
+					changelogIndex++;
+				}
+			});
+			
+		} catch (error) {
+			handleError(error, 'changelog_parsing');
+		}
+	}
+	
+	// Add FAQ from parsed content
+	function addFAQFromParsed(generator, elements, state, question, answer, index) {
+		try {
+			if (!elements.faqContainer) return;
+			
+			// Create new FAQ item
+			const faqItem = document.createElement('div');
+			faqItem.className = 'faq-item components-panel__body';
+			faqItem.innerHTML = `
+				<div class="faq-header">
+					<span class="faq-number components-panel__body-title">FAQ #${index}</span>
+					<button type="button" class="remove-faq components-button is-destructive" aria-label="Remove FAQ">×</button>
+				</div>
+				<div class="form-row components-base-control">
+					<label class="components-base-control__label">Question</label>
+					<input type="text" class="faq-question components-text-control__input" placeholder="How do I use this plugin?" maxlength="200" value="${sanitizeInput(question, 200)}">
+				</div>
+				<div class="form-row components-base-control">
+					<label class="components-base-control__label">Answer</label>
+					<textarea class="faq-answer components-textarea-control__input" rows="3" placeholder="Just install and activate the plugin..." maxlength="1000">${sanitizeInput(answer, 1000)}</textarea>
+				</div>
+			`;
+			
+			elements.faqContainer.appendChild(faqItem);
+			state.faqIndex = Math.max(state.faqIndex, index + 1);
+			
+			// Add remove functionality
+			const removeBtn = faqItem.querySelector('.remove-faq');
+			removeBtn.addEventListener('click', function() {
+				faqItem.remove();
+			});
+			
+		} catch (error) {
+			handleError(error, 'faq_creation');
+		}
+	}
+	
+	// Add changelog from parsed content
+	function addChangelogFromParsed(generator, elements, state, version, changes, index) {
+		try {
+			if (!elements.changelogContainer) return;
+			
+			// Create new changelog item
+			const changelogItem = document.createElement('div');
+			changelogItem.className = 'changelog-item components-panel__body';
+			
+			// Build changes HTML
+			let changesHTML = '';
+			changes.forEach(function(change) {
+				changesHTML += `
+					<div class="change-item">
+						<input type="text" class="changelog-change components-text-control__input" placeholder="Initial release" maxlength="200" value="${sanitizeInput(change, 200)}">
+						<button type="button" class="remove-change components-button is-destructive" aria-label="Remove Change">×</button>
+					</div>
+				`;
+			});
+			
+			changelogItem.innerHTML = `
+				<div class="changelog-header">
+					<div class="form-row components-base-control">
+						<label class="components-base-control__label">Version</label>
+						<input type="text" class="changelog-version components-text-control__input" placeholder="1.0.0" pattern="^\\d+\\.\\d+\\.\\d+$" maxlength="20" value="${sanitizeInput(version, 20)}">
+					</div>
+					<button type="button" class="remove-changelog components-button is-destructive" aria-label="Remove Changelog Entry">×</button>
+				</div>
+				<div class="changes-container">
+					${changesHTML}
+				</div>
+				<button type="button" class="add-change components-button is-secondary">+ Add Change</button>
+			`;
+			
+			elements.changelogContainer.appendChild(changelogItem);
+			state.changelogIndex = Math.max(state.changelogIndex, index + 1);
+			
+			// Add event listeners
+			setupChangelogItemListeners(changelogItem);
+			
+		} catch (error) {
+			handleError(error, 'changelog_creation');
+		}
+	}
+	
+	// Setup changelog item event listeners
+	function setupChangelogItemListeners(item) {
+		const removeBtn = item.querySelector('.remove-changelog');
+		const addChangeBtn = item.querySelector('.add-change');
+		const changesContainer = item.querySelector('.changes-container');
+		
+		// Remove changelog entry
+		removeBtn.addEventListener('click', function() {
+			item.remove();
+		});
+		
+		// Add new change
+		addChangeBtn.addEventListener('click', function() {
+			addChangeItem(changesContainer);
+		});
+		
+		// Setup existing change items
+		const changeItems = item.querySelectorAll('.change-item');
+		changeItems.forEach(function(changeItem) {
+			setupChangeItemListeners(changeItem);
+		});
+	}
+	
+	// Add new change item
+	function addChangeItem(container) {
+		const changeItem = document.createElement('div');
+		changeItem.className = 'change-item';
+		changeItem.innerHTML = `
+			<input type="text" class="changelog-change components-text-control__input" placeholder="Initial release" maxlength="200">
+			<button type="button" class="remove-change components-button is-destructive" aria-label="Remove Change">×</button>
+		`;
+		
+		container.appendChild(changeItem);
+		setupChangeItemListeners(changeItem);
+	}
+	
+	// Setup change item listeners
+	function setupChangeItemListeners(changeItem) {
+		const removeBtn = changeItem.querySelector('.remove-change');
+		removeBtn.addEventListener('click', function() {
+			changeItem.remove();
+		});
+	}
 	
 	// Set field value with validation
 	function setFieldValue(generator, selector, value) {
@@ -783,11 +1009,11 @@
 			// Clean up
 			setTimeout(() => URL.revokeObjectURL(url), 1000);
 			
-			showNotification('Readme file downloaded successfully!', 'success');
+			showInlineNotification('Readme file downloaded successfully!', 'success');
 			
 				} catch (error) {
 			handleError(error, 'readme_download');
-			showNotification('Error downloading readme. Please try again.', 'error');
+			showInlineNotification('Error downloading readme. Please try again.', 'error');
 		}
 	}
 	
@@ -825,15 +1051,454 @@
 	}
 	
 	function updateTagsDisplay(generator, selector, tags, type) {
-		// Implementation with DOM security
+		try {
+			const display = generator.querySelector(selector);
+			if (!display || !tags) return;
+			
+			display.innerHTML = '';
+			
+			tags.forEach(function(tag, index) {
+				const tagElement = document.createElement('div');
+				tagElement.className = 'tag';
+				tagElement.innerHTML = `
+					<span>${sanitizeInput(tag, 50)}</span>
+					<button type="button" class="tag-remove" aria-label="Remove ${type}">×</button>
+				`;
+				
+				// Add remove functionality
+				const removeBtn = tagElement.querySelector('.tag-remove');
+				removeBtn.addEventListener('click', function() {
+					tags.splice(index, 1);
+					updateTagsDisplay(generator, selector, tags, type);
+					updateHiddenInput(display.parentNode.querySelector('input[type="hidden"]'), tags);
+				});
+				
+				display.appendChild(tagElement);
+			});
+			
+		} catch (error) {
+			handleError(error, 'tags_display_update');
+		}
+	}
+	
+	// Initialize tags management with security
+	function initializeTagsManagement(generator, elements, state) {
+		// Contributors management
+		if (elements.addContributorBtn && elements.contributorsInput && elements.contributorsDisplay) {
+			elements.addContributorBtn.addEventListener('click', function(e) {
+				e.preventDefault();
+				addTag(elements.contributorsInput, elements.contributorsDisplay, state.contributorsTags, 'contributor', elements.contributorsHidden);
+			});
+			
+			elements.contributorsInput.addEventListener('keypress', function(e) {
+				if (e.key === 'Enter') {
+					e.preventDefault();
+					addTag(elements.contributorsInput, elements.contributorsDisplay, state.contributorsTags, 'contributor', elements.contributorsHidden);
+				}
+			});
+		}
+		
+		// Tags management
+		if (elements.addTagBtn && elements.tagsInput && elements.tagsDisplay) {
+			elements.addTagBtn.addEventListener('click', function(e) {
+				e.preventDefault();
+				addTag(elements.tagsInput, elements.tagsDisplay, state.tagsTags, 'tag', elements.tagsHidden);
+			});
+			
+			elements.tagsInput.addEventListener('keypress', function(e) {
+				if (e.key === 'Enter') {
+					e.preventDefault();
+					addTag(elements.tagsInput, elements.tagsDisplay, state.tagsTags, 'tag', elements.tagsHidden);
+				}
+			});
+		}
+	}
+	
+	// Add tag with validation
+	function addTag(input, display, tagArray, type, hiddenInput) {
+		try {
+			const value = sanitizeInput(input.value.trim(), 50);
+			
+			if (!value) {
+				showNotification('Please enter a valid tag', 'error', 3000);
+				return;
+			}
+			
+			// Validate tag format
+			if (type === 'contributor' && !validateInput(value, 'username')) {
+				showNotification('Invalid contributor username format', 'error', 3000);
+				return;
+			}
+			
+			if (type === 'tag' && !validateInput(value, 'tag')) {
+				showNotification('Invalid tag format', 'error', 3000);
+				return;
+			}
+			
+			// Check for duplicates
+			if (tagArray.includes(value)) {
+				showNotification('Tag already exists', 'error', 3000);
+				return;
+			}
+			
+			// Check limits
+			const maxItems = type === 'contributor' ? SECURITY_CONFIG.maxItems.contributors : SECURITY_CONFIG.maxItems.tags;
+			if (tagArray.length >= maxItems) {
+				showNotification(`Maximum ${maxItems} ${type}s allowed`, 'error', 3000);
+				return;
+			}
+			
+			// Add tag
+			tagArray.push(value);
+			updateTagsDisplaySimple(display, tagArray, type);
+			updateHiddenInput(hiddenInput, tagArray);
+			
+			// Clear input
+			input.value = '';
+			input.focus();
+			
+		} catch (error) {
+			handleError(error, 'tag_addition');
+		}
+	}
+	
+	// Update hidden input with tag values
+	function updateHiddenInput(hiddenInput, tagArray) {
+		if (hiddenInput && tagArray) {
+			hiddenInput.value = tagArray.join(', ');
+		}
+	}
+	
+	// Simple version of updateTagsDisplay for direct use
+	function updateTagsDisplaySimple(display, tagArray, type) {
+		try {
+			if (!display || !tagArray) return;
+			
+			display.innerHTML = '';
+			
+			tagArray.forEach(function(tag, index) {
+				const tagElement = document.createElement('div');
+				tagElement.className = 'tag';
+				tagElement.innerHTML = `
+					<span>${sanitizeInput(tag, 50)}</span>
+					<button type="button" class="tag-remove" aria-label="Remove ${type}">×</button>
+				`;
+				
+				// Add remove functionality
+				const removeBtn = tagElement.querySelector('.tag-remove');
+				removeBtn.addEventListener('click', function() {
+					tagArray.splice(index, 1);
+					updateTagsDisplaySimple(display, tagArray, type);
+					updateHiddenInput(display.parentNode.querySelector('input[type="hidden"]'), tagArray);
+				});
+				
+				display.appendChild(tagElement);
+			});
+			
+		} catch (error) {
+			handleError(error, 'tags_display_simple_update');
+		}
+	}
+	
+	// Initialize formatting buttons with XSS prevention
+	function initializeFormattingButtons(generator, elements) {
+		const formattingButtons = generator.querySelectorAll('.format-btn');
+		
+		formattingButtons.forEach(function(btn) {
+			btn.addEventListener('click', function(e) {
+				e.preventDefault();
+				
+				try {
+					const format = this.dataset.format;
+					const textarea = this.closest('.form-row').querySelector('textarea');
+					
+					if (!textarea) return;
+					
+					applyFormatting(format, textarea);
+					
+				} catch (error) {
+					handleError(error, 'formatting_button_click');
+				}
+			});
+		});
+	}
+	
+	// Apply formatting with security
+	function applyFormatting(format, textarea) {
+		try {
+			const start = textarea.selectionStart;
+			const end = textarea.selectionEnd;
+			const selectedText = textarea.value.substring(start, end);
+			const beforeText = textarea.value.substring(0, start);
+			const afterText = textarea.value.substring(end);
+			
+			let formattedText = '';
+			
+			switch (format) {
+				case 'bold':
+					formattedText = selectedText ? `**${selectedText}**` : '**bold text**';
+					break;
+				case 'italic':
+					formattedText = selectedText ? `*${selectedText}*` : '*italic text*';
+					break;
+				case 'code':
+					formattedText = selectedText ? `\`${selectedText}\`` : '`code`';
+					break;
+				case 'heading':
+					formattedText = selectedText ? `= ${selectedText} =` : '= Heading =';
+					break;
+				case 'bullet':
+					formattedText = selectedText ? `* ${selectedText}` : '* List item';
+					break;
+				case 'numbered':
+					formattedText = selectedText ? `1. ${selectedText}` : '1. List item';
+					break;
+				case 'link':
+					formattedText = selectedText ? `[${selectedText}](https://example.com)` : '[Link text](https://example.com)';
+					break;
+				default:
+					return;
+			}
+			
+			// Sanitize formatted text
+			formattedText = sanitizeInput(formattedText, 1000);
+			
+			// Update textarea
+			textarea.value = beforeText + formattedText + afterText;
+			
+			// Set cursor position
+			const newCursorPos = start + formattedText.length;
+			textarea.setSelectionRange(newCursorPos, newCursorPos);
+			textarea.focus();
+			
+		} catch (error) {
+			handleError(error, 'formatting_application');
+		}
+	}
+	
+	// Initialize FAQ management with input validation
+	function initializeFAQManagement(generator, elements, state) {
+		if (!elements.addFAQBtn || !elements.faqContainer) return;
+		
+		elements.addFAQBtn.addEventListener('click', function(e) {
+			e.preventDefault();
+			addFAQ(elements.faqContainer, state);
+		});
+		
+		// Setup existing FAQ items
+		const existingFAQs = elements.faqContainer.querySelectorAll('.faq-item');
+		existingFAQs.forEach(function(faq) {
+			setupFAQItemListeners(faq);
+		});
+	}
+	
+	// Add new FAQ
+	function addFAQ(container, state) {
+		try {
+			const faqIndex = state.faqIndex;
+			const faqItem = document.createElement('div');
+			faqItem.className = 'faq-item components-panel__body';
+			faqItem.innerHTML = `
+				<div class="faq-header">
+					<span class="faq-number components-panel__body-title">FAQ #${faqIndex}</span>
+					<button type="button" class="remove-faq components-button is-destructive" aria-label="Remove FAQ">×</button>
+				</div>
+				<div class="form-row components-base-control">
+					<label class="components-base-control__label">Question</label>
+					<input type="text" class="faq-question components-text-control__input" placeholder="How do I use this plugin?" maxlength="200">
+				</div>
+				<div class="form-row components-base-control">
+					<label class="components-base-control__label">Answer</label>
+					<textarea class="faq-answer components-textarea-control__input" rows="3" placeholder="Just install and activate the plugin..." maxlength="1000"></textarea>
+				</div>
+			`;
+			
+			container.appendChild(faqItem);
+			state.faqIndex++;
+			
+			setupFAQItemListeners(faqItem);
+			
+		} catch (error) {
+			handleError(error, 'faq_addition');
+		}
+	}
+	
+	// Setup FAQ item listeners
+	function setupFAQItemListeners(faqItem) {
+		const removeBtn = faqItem.querySelector('.remove-faq');
+		removeBtn.addEventListener('click', function() {
+			faqItem.remove();
+		});
+		
+		// Add validation to inputs
+		const questionInput = faqItem.querySelector('.faq-question');
+		const answerTextarea = faqItem.querySelector('.faq-answer');
+		
+		if (questionInput) {
+			questionInput.addEventListener('input', function() {
+				this.value = sanitizeInput(this.value, 200);
+			});
+		}
+		
+		if (answerTextarea) {
+			answerTextarea.addEventListener('input', function() {
+				this.value = sanitizeInput(this.value, 1000);
+			});
+		}
+	}
+	
+	// Initialize changelog management with sanitization
+	function initializeChangelogManagement(generator, elements, state) {
+		if (!elements.addChangelogBtn || !elements.changelogContainer) return;
+		
+		elements.addChangelogBtn.addEventListener('click', function(e) {
+			e.preventDefault();
+			addChangelog(elements.changelogContainer, state);
+		});
+		
+		// Setup existing changelog items
+		const existingChangelogs = elements.changelogContainer.querySelectorAll('.changelog-item');
+		existingChangelogs.forEach(function(changelog) {
+			setupChangelogItemListeners(changelog);
+		});
+	}
+	
+	// Add new changelog
+	function addChangelog(container, state) {
+		try {
+			const changelogIndex = state.changelogIndex;
+			const changelogItem = document.createElement('div');
+			changelogItem.className = 'changelog-item components-panel__body';
+			changelogItem.innerHTML = `
+				<div class="changelog-header">
+					<div class="form-row components-base-control">
+						<label class="components-base-control__label">Version</label>
+						<input type="text" class="changelog-version components-text-control__input" placeholder="1.0.0" pattern="^\\d+\\.\\d+\\.\\d+$" maxlength="20">
+					</div>
+					<button type="button" class="remove-changelog components-button is-destructive" aria-label="Remove Changelog Entry">×</button>
+				</div>
+				<div class="changes-container">
+					<div class="change-item">
+						<input type="text" class="changelog-change components-text-control__input" placeholder="Initial release" maxlength="200">
+						<button type="button" class="remove-change components-button is-destructive" aria-label="Remove Change">×</button>
+					</div>
+				</div>
+				<button type="button" class="add-change components-button is-secondary">+ Add Change</button>
+			`;
+			
+			container.appendChild(changelogItem);
+			state.changelogIndex++;
+			
+			setupChangelogItemListeners(changelogItem);
+			
+		} catch (error) {
+			handleError(error, 'changelog_addition');
+		}
+	}
+	
+	// Initialize modal handlers with focus management
+	function initializeModalHandlers(elements) {
+		if (!elements.previewModal) return;
+		
+		// Close modal functionality
+		if (elements.closeModal) {
+			elements.closeModal.addEventListener('click', function() {
+				closeModal(elements.previewModal);
+			});
+		}
+		
+		// Close on escape key
+		document.addEventListener('keydown', function(e) {
+			if (e.key === 'Escape' && elements.previewModal.style.display === 'flex') {
+				closeModal(elements.previewModal);
+			}
+		});
+		
+		// Close on backdrop click
+		elements.previewModal.addEventListener('click', function(e) {
+			if (e.target === this) {
+				closeModal(this);
+			}
+		});
+		
+		// Modal download button
+		if (elements.modalDownloadBtn) {
+			elements.modalDownloadBtn.addEventListener('click', function(e) {
+				e.preventDefault();
+				closeModal(elements.previewModal);
+				// Trigger main download
+				if (elements.downloadBtn) {
+					elements.downloadBtn.click();
+				}
+			});
+		}
+	}
+	
+	// Close modal with focus management
+	function closeModal(modal) {
+		modal.style.display = 'none';
+		modal.setAttribute('aria-hidden', 'true');
+		
+		// Return focus to preview button
+		const previewBtn = document.querySelector('#previewBtn');
+		if (previewBtn) {
+			previewBtn.focus();
+		}
 	}
 	
 	function generateFAQSection(elements) {
-		return '= Question? =\n\nAnswer here.\n\n';
+		try {
+			const faqItems = elements.form.querySelectorAll('.faq-item');
+			let faqSection = '';
+			
+			faqItems.forEach(function(item) {
+				const question = item.querySelector('.faq-question').value.trim();
+				const answer = item.querySelector('.faq-answer').value.trim();
+				
+				if (question && answer) {
+					const sanitizedQuestion = sanitizeInput(question, 200);
+					const sanitizedAnswer = sanitizeInput(answer, 1000);
+					faqSection += `= ${sanitizedQuestion} =\n\n${sanitizedAnswer}\n\n`;
+				}
+			});
+			
+			return faqSection || '= How do I use this plugin? =\n\nJust install and activate the plugin through the WordPress admin.\n\n';
+		} catch (error) {
+			handleError(error, 'faq_section_generation');
+			return '= How do I use this plugin? =\n\nJust install and activate the plugin through the WordPress admin.\n\n';
+		}
 	}
 	
 	function generateChangelogSection(elements) {
+		try {
+			const changelogItems = elements.form.querySelectorAll('.changelog-item');
+			let changelogSection = '';
+			
+			changelogItems.forEach(function(item) {
+				const version = item.querySelector('.changelog-version').value.trim();
+				const changes = item.querySelectorAll('.changelog-change');
+				
+				if (version && changes.length > 0) {
+					const sanitizedVersion = sanitizeInput(version, 20);
+					changelogSection += `= ${sanitizedVersion} =\n`;
+					
+					changes.forEach(function(changeInput) {
+						const change = changeInput.value.trim();
+						if (change) {
+							const sanitizedChange = sanitizeInput(change, 200);
+							changelogSection += `* ${sanitizedChange}\n`;
+						}
+					});
+					
+					changelogSection += '\n';
+				}
+			});
+			
+			return changelogSection || '= 1.0.0 =\n* Initial release\n\n';
+		} catch (error) {
+			handleError(error, 'changelog_section_generation');
 		return '= 1.0.0 =\n* Initial release\n\n';
+		}
 	}
 	
 })();
