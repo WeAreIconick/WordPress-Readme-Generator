@@ -292,8 +292,7 @@
 			initializeInlinePreviewHandlers(elements);
 			initializeFormHandlers(elements, state);
 			
-			// Success message
-			showInlineNotification('Readme generator loaded successfully!', 'success', 3000);
+			// Generator initialized silently
 			
 					} catch (error) {
 			handleError(error, 'generator_initialization');
@@ -587,43 +586,54 @@
 	// Parse FAQ section from content
 	function parseFAQ(content, generator, elements, state) {
 		try {
-			const faqRegex = /==\s*Frequently Asked Questions\s*==([\s\S]*?)(?==\s*\w+\s*==|$)/i;
-			const match = content.match(faqRegex);
-			
-			if (!match || !match[1]) return;
-			
-			const faqContent = match[1].trim();
-			if (!faqContent) return;
-			
-			// Parse individual FAQ items
-			const faqItems = faqContent.split(/(?==\s*[^=]+\s*=\s*$)/gm);
+			const lines = content.split('\n');
+			let inFAQSection = false;
+			let currentQuestion = '';
+			let currentAnswer = '';
 			let faqIndex = 1;
 			
-			faqItems.forEach(function(item) {
-				if (!item.trim()) return;
+			for (let i = 0; i < lines.length; i++) {
+				const line = lines[i].trim();
 				
-				// Extract question and answer
-				const lines = item.trim().split('\n');
-				let question = '';
-				let answer = '';
-				let inAnswer = false;
+				// Check if we're entering FAQ section
+				if (line.match(/^==\s*Frequently Asked Questions\s*==$/i)) {
+					inFAQSection = true;
+					continue;
+				}
 				
-				for (let i = 0; i < lines.length; i++) {
-					const line = lines[i].trim();
-					
-					if (line.match(/^=\s*.+\s*=\s*$/)) {
-						question = line.replace(/^=\s*|\s*=\s*$/g, '');
-						inAnswer = true;
-					} else if (inAnswer && line) {
-						answer += line + '\n';
+				// Check if we're leaving FAQ section (next main section)
+				if (inFAQSection && line.match(/^==\s+.+\s+==$/) && !line.match(/^==\s*Frequently Asked Questions\s*==$/i)) {
+					// Save last FAQ if we have one
+					if (currentQuestion && currentAnswer) {
+						addFAQFromParsed(generator, elements, state, currentQuestion, currentAnswer.trim(), faqIndex);
+						faqIndex++;
 					}
+					break;
 				}
 				
-				if (question && answer) {
-					addFAQFromParsed(generator, elements, state, question, answer.trim(), faqIndex);
-					faqIndex++;
+				if (!inFAQSection) continue;
+				
+				// Check for FAQ questions (### format)
+				if (line.match(/^###\s+.+$/)) {
+					// Save previous FAQ if we have one
+					if (currentQuestion && currentAnswer) {
+						addFAQFromParsed(generator, elements, state, currentQuestion, currentAnswer.trim(), faqIndex);
+						faqIndex++;
+					}
+					
+					// Start new FAQ
+					currentQuestion = line.replace(/^###\s+/, '').trim();
+					currentAnswer = '';
+				} else if (currentQuestion && line) {
+					// Add to answer
+					currentAnswer += line + '\n';
 				}
-			});
+			}
+			
+			// Save last FAQ if we have one
+			if (inFAQSection && currentQuestion && currentAnswer) {
+				addFAQFromParsed(generator, elements, state, currentQuestion, currentAnswer.trim(), faqIndex);
+			}
 			
 		} catch (error) {
 			handleError(error, 'faq_parsing');
@@ -633,44 +643,61 @@
 	// Parse changelog section from content
 	function parseChangelog(content, generator, elements, state) {
 		try {
-			const changelogRegex = /==\s*Changelog\s*==([\s\S]*?)(?==\s*\w+\s*==|$)/i;
-			const match = content.match(changelogRegex);
-			
-			if (!match || !match[1]) return;
-			
-			const changelogContent = match[1].trim();
-			if (!changelogContent) return;
-			
-			// Parse individual changelog versions
-			const versionItems = changelogContent.split(/(?==\s*[\d.]+\s*=\s*$)/gm);
+			const lines = content.split('\n');
+			let inChangelogSection = false;
+			let currentVersion = '';
+			let currentChanges = [];
 			let changelogIndex = 1;
 			
-			versionItems.forEach(function(item) {
-				if (!item.trim()) return;
+			for (let i = 0; i < lines.length; i++) {
+				const line = lines[i].trim();
 				
-				// Extract version and changes
-				const lines = item.trim().split('\n');
-				let version = '';
-				const changes = [];
+				// Check if we're entering changelog section
+				if (line.match(/^==\s*Changelog\s*==$/i)) {
+					inChangelogSection = true;
+					continue;
+				}
 				
-				for (let i = 0; i < lines.length; i++) {
-					const line = lines[i].trim();
+				// Check if we're leaving changelog section (end of file or next main section)
+				if (inChangelogSection && (line.match(/^==\s+.+\s+==$/) || i === lines.length - 1)) {
+					// Save last changelog entry if we have one
+					if (currentVersion && currentChanges.length > 0) {
+						addChangelogFromParsed(generator, elements, state, currentVersion, currentChanges, changelogIndex);
+						changelogIndex++;
+					}
 					
-					if (line.match(/^=\s*[\d.]+\s*=\s*$/)) {
-						version = line.replace(/^=\s*|\s*=\s*$/g, '');
-					} else if (line.match(/^\*\s+/)) {
-						const change = line.replace(/^\*\s+/, '').trim();
-						if (change) {
-							changes.push(change);
-						}
+					// If it's a new section (not end of file), break
+					if (line.match(/^==\s+.+\s+==$/)) {
+						break;
 					}
 				}
 				
-				if (version && changes.length > 0) {
-					addChangelogFromParsed(generator, elements, state, version, changes, changelogIndex);
-					changelogIndex++;
+				if (!inChangelogSection) continue;
+				
+				// Check for changelog versions (= format)
+				if (line.match(/^=\s+.+\s+=$/)) {
+					// Save previous changelog entry if we have one
+					if (currentVersion && currentChanges.length > 0) {
+						addChangelogFromParsed(generator, elements, state, currentVersion, currentChanges, changelogIndex);
+						changelogIndex++;
+					}
+					
+					// Start new changelog entry
+					currentVersion = line.replace(/^=\s+|\s+=$/g, '').trim();
+					currentChanges = [];
+				} else if (currentVersion && line.match(/^\*\s+/)) {
+					// Add change item
+					const change = line.replace(/^\*\s+/, '').trim();
+					if (change) {
+						currentChanges.push(change);
+					}
 				}
-			});
+			}
+			
+			// Save last changelog entry if we have one
+			if (inChangelogSection && currentVersion && currentChanges.length > 0) {
+				addChangelogFromParsed(generator, elements, state, currentVersion, currentChanges, changelogIndex);
+			}
 			
 		} catch (error) {
 			handleError(error, 'changelog_parsing');
